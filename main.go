@@ -54,7 +54,7 @@ var commandASN = &cobra.Command{
 
 func init() {
 	mainCommand.PersistentFlags().StringVarP(&inPath, "file", "f", "", "Input File Path")
-	mainCommand.PersistentFlags().StringVarP(&outType, "type", "t", "", "Output Type")
+	mainCommand.PersistentFlags().StringVarP(&outType, "type", "t", "", "Output Type (clash, sing-box, surge)")
 	mainCommand.PersistentFlags().StringVarP(&outDir, "out", "o", "", "Output Path")
 
 	mainCommand.AddCommand(commandSite)

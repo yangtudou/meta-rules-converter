@@ -8,6 +8,7 @@ import (
 
 	"github.com/metacubex/meta-rules-converter/output/meta"
 	"github.com/metacubex/meta-rules-converter/output/sing"
+	"github.com/metacubex/meta-rules-converter/output/surge"
 
 	"google.golang.org/protobuf/proto"
 	"gopkg.in/yaml.v3"
@@ -40,6 +41,8 @@ func ConvertSite(cmd *cobra.Command, inPath string, outType string, outDir strin
 		domainSuffix  = make(map[string][]string)
 		domainKeyword = make(map[string][]string)
 		domainRegex   = make(map[string][]string)
+		surgeRules    = make(map[string][]string)
+		skippedRegex  = make(map[string]int)
 		wg            sync.WaitGroup
 		mutex         sync.Mutex
 	)
@@ -56,12 +59,14 @@ func ConvertSite(cmd *cobra.Command, inPath string, outType string, outDir strin
 			code := strings.ToLower(entry.CountryCode)
 			marks := make(map[string][]*router.Domain)
 			var (
-				d []string
-				c []string
-				f []string
-				s []string
-				k []string
-				r []string
+				d       []string
+				c       []string
+				f       []string
+				s       []string
+				k       []string
+				r       []string
+				sr      []string
+				skipped int
 			)
 			for _, domain := range entry.Domain {
 				if len(domain.Attribute) > 0 {
@@ -74,16 +79,20 @@ func ConvertSite(cmd *cobra.Command, inPath string, outType string, outDir strin
 					d = append(d, domain.Value)
 					c = append(c, "DOMAIN,"+domain.Value)
 					f = append(f, domain.Value)
+					sr = append(sr, surge.DomainRule(surge.RuleDomain, domain.Value))
 				case router.Domain_Domain:
 					d = append(d, "+."+domain.Value)
 					c = append(c, "DOMAIN-SUFFIX,"+domain.Value)
 					s = append(s, domain.Value)
+					sr = append(sr, surge.DomainRule(surge.RuleDomainSuffix, domain.Value))
 				case router.Domain_Regex:
 					c = append(c, "DOMAIN-REGEX,"+domain.Value)
 					r = append(r, domain.Value)
+					skipped++
 				case router.Domain_Plain:
 					c = append(c, "DOMAIN-KEYWORD,"+domain.Value)
 					k = append(k, domain.Value)
+					sr = append(sr, surge.DomainRule(surge.RuleDomainKeyword, domain.Value))
 				}
 			}
 			mutex.Lock()
@@ -96,17 +105,22 @@ func ConvertSite(cmd *cobra.Command, inPath string, outType string, outDir strin
 				domainSuffix[code] = s
 				domainKeyword[code] = k
 				domainRegex[code] = r
+			case "surge":
+				surgeRules[code] = sr
+				skippedRegex[code] = skipped
 			}
 			mutex.Unlock()
 
 			for mark, markEntries := range marks {
 				var (
-					md []string
-					mc []string
-					mf []string
-					ms []string
-					mk []string
-					mr []string
+					md       []string
+					mc       []string
+					mf       []string
+					ms       []string
+					mk       []string
+					mr       []string
+					msr      []string
+					mskipped int
 				)
 				for _, domain := range markEntries {
 					switch domain.Type {
@@ -114,16 +128,20 @@ func ConvertSite(cmd *cobra.Command, inPath string, outType string, outDir strin
 						md = append(md, domain.Value)
 						mc = append(mc, "DOMAIN,"+domain.Value)
 						mf = append(mf, domain.Value)
+						msr = append(msr, surge.DomainRule(surge.RuleDomain, domain.Value))
 					case router.Domain_Domain:
 						md = append(md, "+."+domain.Value)
 						mc = append(mc, "DOMAIN-SUFFIX,"+domain.Value)
 						ms = append(ms, domain.Value)
+						msr = append(msr, surge.DomainRule(surge.RuleDomainSuffix, domain.Value))
 					case router.Domain_Regex:
 						mc = append(mc, "DOMAIN-REGEX,"+domain.Value)
 						mr = append(mr, domain.Value)
+						mskipped++
 					case router.Domain_Plain:
 						mc = append(mc, "DOMAIN-KEYWORD,"+domain.Value)
 						mk = append(mk, domain.Value)
+						msr = append(msr, surge.DomainRule(surge.RuleDomainKeyword, domain.Value))
 					}
 				}
 				mutex.Lock()
@@ -136,6 +154,9 @@ func ConvertSite(cmd *cobra.Command, inPath string, outType string, outDir strin
 					domainSuffix[code+"@"+mark] = ms
 					domainKeyword[code+"@"+mark] = mk
 					domainRegex[code+"@"+mark] = mr
+				case "surge":
+					surgeRules[code+"@"+mark] = msr
+					skippedRegex[code+"@"+mark] = mskipped
 				}
 				mutex.Unlock()
 			}
@@ -196,6 +217,15 @@ func ConvertSite(cmd *cobra.Command, inPath string, outType string, outDir strin
 				},
 			}
 			sing.SaveSingRuleSet(domainRule, outDir+"/"+code)
+		}
+	case "surge":
+		for code, rules := range surgeRules {
+			if err := surge.SaveRuleSet(rules, outDir+"/"+code+".list"); err != nil {
+				return fmt.Errorf("write Surge rule set %s: %w", code, err)
+			}
+			if skippedRegex[code] > 0 {
+				fmt.Printf("%s: skipped %d regexp rule(s) unsupported by Surge\n", code, skippedRegex[code])
+			}
 		}
 	}
 	return nil

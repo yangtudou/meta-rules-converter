@@ -6,6 +6,8 @@
 *.dylib
 bin/*
 meta-rules-converter*
+/openai.list
+/cn-ip.list
 
 # Test binary, build with `go test -c`
 *.test
@@ -24,6 +26,5 @@ vendor
 
 # test suite
 test/config/cache*
-/output
 .vscode/
 .fleet/

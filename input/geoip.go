@@ -9,6 +9,7 @@ import (
 
 	"github.com/metacubex/meta-rules-converter/output/meta"
 	"github.com/metacubex/meta-rules-converter/output/sing"
+	"github.com/metacubex/meta-rules-converter/output/surge"
 
 	"google.golang.org/protobuf/proto"
 	"gopkg.in/yaml.v3"
@@ -49,6 +50,7 @@ func ConvertIP(cmd *cobra.Command, inPath string, outType string, outDir string)
 	)
 	countryCIDRs := make(map[string][]string)
 	classicalCIDRs := make(map[string][]string)
+	surgeCIDRs := make(map[string][]string)
 
 	list := router.GeoIPList{}
 	err = proto.Unmarshal(data, &list)
@@ -61,19 +63,29 @@ func ConvertIP(cmd *cobra.Command, inPath string, outType string, outDir string)
 			defer wg.Done()
 			code := strings.ToLower(entry.CountryCode)
 			var (
-				results   []string
-				classical []string
+				results    []string
+				classical  []string
+				surgeRules []string
 			)
 			for _, cidr := range entry.Cidr {
-				results = append(results, fmt.Sprintf("%s/%d", net.IP(cidr.Ip).String(), cidr.Prefix))
+				prefix := fmt.Sprintf("%s/%d", net.IP(cidr.Ip).String(), cidr.Prefix)
+				results = append(results, prefix)
 				if outType == "clash" {
-					classical = append(classical, fmt.Sprintf("IP-CIDR,%s/%d", net.IP(cidr.Ip).String(), cidr.Prefix))
+					classical = append(classical, "IP-CIDR,"+prefix)
+				} else if outType == "surge" {
+					rule, err := surge.IPCIDRRule(prefix)
+					if err != nil {
+						continue
+					}
+					surgeRules = append(surgeRules, rule)
 				}
 			}
 			mutex.Lock()
 			countryCIDRs[code] = results
 			if outType == "clash" {
 				classicalCIDRs[code] = classical
+			} else if outType == "surge" {
+				surgeCIDRs[code] = surgeRules
 			}
 			mutex.Unlock()
 		}(entry)
@@ -135,6 +147,12 @@ func ConvertIP(cmd *cobra.Command, inPath string, outType string, outDir string)
 			err = sing.SaveSingRuleSet(ipcidrRule, outDir+"/"+code)
 			if err != nil {
 				fmt.Println(code, " output err: ", err)
+			}
+		}
+	case "surge":
+		for code, rules := range surgeCIDRs {
+			if err := surge.SaveRuleSet(rules, outDir+"/"+code+".list"); err != nil {
+				return fmt.Errorf("write Surge rule set %s: %w", code, err)
 			}
 		}
 	}

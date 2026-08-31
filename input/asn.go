@@ -9,6 +9,7 @@ import (
 
 	"github.com/metacubex/meta-rules-converter/output/meta"
 	"github.com/metacubex/meta-rules-converter/output/sing"
+	"github.com/metacubex/meta-rules-converter/output/surge"
 	"github.com/oschwald/maxminddb-golang"
 	"github.com/spf13/cobra"
 )
@@ -84,6 +85,28 @@ func ConvertASN(cmd *cobra.Command, inPath string, outType string, outDir string
 				err := sing.SaveSingRuleSet(ipcidrRule, filepath.Join(outDir, fmt.Sprintf("AS%d", number)))
 				if err != nil {
 					fmt.Printf("AS%d output err: %v", number, err)
+				}
+			}(number, cidrs)
+		}
+	case "surge":
+		for number, cidrs := range countryCIDRs {
+			wg.Add(1)
+			semaphore <- struct{}{}
+			go func(number uint, cidrs []string) {
+				defer wg.Done()
+				defer func() { <-semaphore }()
+				code := fmt.Sprintf("AS%d", number)
+				rules := make([]string, 0, len(cidrs))
+				for _, cidr := range cidrs {
+					rule, err := surge.IPCIDRRule(cidr)
+					if err != nil {
+						fmt.Printf("%s output err: %v", code, err)
+						continue
+					}
+					rules = append(rules, rule)
+				}
+				if err := surge.SaveRuleSet(rules, filepath.Join(outDir, code+".list")); err != nil {
+					fmt.Printf("%s output err: %v", code, err)
 				}
 			}(number, cidrs)
 		}
