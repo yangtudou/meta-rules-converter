@@ -27,7 +27,7 @@ func TestConvertSiteToSurge(t *testing.T) {
 	inputPath := filepath.Join(t.TempDir(), "geosite.dat")
 	writeProtoFile(t, inputPath, list)
 	outputDir := filepath.Join(t.TempDir(), "geosite")
-	if err := ConvertSite(nil, inputPath, "surge", outputDir); err != nil {
+	if err := ConvertSite(nil, inputPath, "surge", outputDir, false); err != nil {
 		t.Fatal(err)
 	}
 

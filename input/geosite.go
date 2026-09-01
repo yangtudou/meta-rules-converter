@@ -3,6 +3,7 @@ package input
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 
@@ -17,7 +18,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func ConvertSite(cmd *cobra.Command, inPath string, outType string, outDir string) error {
+func ConvertSite(cmd *cobra.Command, inPath string, outType string, outDir string, verbose bool) error {
 	if inPath == "" {
 		inPath = "geosite.dat"
 	}
@@ -219,13 +220,25 @@ func ConvertSite(cmd *cobra.Command, inPath string, outType string, outDir strin
 			sing.SaveSingRuleSet(domainRule, outDir+"/"+code)
 		}
 	case "surge":
+		var skippedCodes []string
+		totalSkipped := 0
 		for code, rules := range surgeRules {
 			if err := surge.SaveRuleSet(rules, outDir+"/"+code+".list"); err != nil {
 				return fmt.Errorf("write Surge rule set %s: %w", code, err)
 			}
 			if skippedRegex[code] > 0 {
-				fmt.Printf("%s: skipped %d regexp rule(s) unsupported by Surge\n", code, skippedRegex[code])
+				skippedCodes = append(skippedCodes, code)
+				totalSkipped += skippedRegex[code]
 			}
+		}
+		if totalSkipped > 0 {
+			sort.Strings(skippedCodes)
+			if verbose {
+				for _, code := range skippedCodes {
+					fmt.Fprintf(os.Stderr, "%s: skipped %d DOMAIN-REGEX rule(s) unsupported by Surge\n", code, skippedRegex[code])
+				}
+			}
+			fmt.Fprintf(os.Stderr, "Surge: skipped %d DOMAIN-REGEX rule(s) across %d rule set(s); use --verbose for details\n", totalSkipped, len(skippedCodes))
 		}
 	}
 	return nil

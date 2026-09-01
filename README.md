@@ -36,3 +36,6 @@ Geosite attributes are also exported (for example, `google@cn.list`). V2Fly
 regular-expression domain rules are skipped with a conversion warning because
 Surge does not provide a lossless equivalent of `DOMAIN-REGEX`. IP rules are
 written as `IP-CIDR` or `IP-CIDR6` and include `no-resolve`.
+
+By default, skipped `DOMAIN-REGEX` rules are reported as one summary. Add
+`--verbose` to print the affected rule-set names and counts.

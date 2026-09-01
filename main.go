@@ -17,6 +17,7 @@ var (
 	inPath  string
 	outType string
 	outDir  string
+	verbose bool
 )
 
 var mainCommand = &cobra.Command{
@@ -27,7 +28,7 @@ var mainCommand = &cobra.Command{
 var commandSite = &cobra.Command{
 	Use: "geosite",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return input.ConvertSite(cmd, inPath, outType, outDir)
+		return input.ConvertSite(cmd, inPath, outType, outDir, verbose)
 	},
 }
 
@@ -56,6 +57,7 @@ func init() {
 	mainCommand.PersistentFlags().StringVarP(&inPath, "file", "f", "", "Input File Path")
 	mainCommand.PersistentFlags().StringVarP(&outType, "type", "t", "", "Output Type (clash, sing-box, surge)")
 	mainCommand.PersistentFlags().StringVarP(&outDir, "out", "o", "", "Output Path")
+	mainCommand.PersistentFlags().BoolVar(&verbose, "verbose", false, "Show detailed conversion warnings")
 
 	mainCommand.AddCommand(commandSite)
 	mainCommand.AddCommand(commandASN)
